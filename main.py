@@ -3,7 +3,6 @@ import time
 import sys
 import mmap
 
-# Définition des constantes
 PING_PONG_LIMIT = 3  # Nombre d'échanges ping-pong avant d'arrêter les serveurs
 
 
