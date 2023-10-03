@@ -43,6 +43,6 @@ def main():
       os.wait()  # Attendre que le serveur secondaire s'arrête
 
 
-# Code pour exécuter le programme principal
+# Code pour exécuter le programme main
 if __name__ == '__main__':
   main()
