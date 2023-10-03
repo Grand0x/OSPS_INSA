@@ -24,7 +24,9 @@ def main_with_pipes():
   # Créer un segment mémoire partagé
   with mmap.mmap(-1, 10) as shared_memory:
     pid = os.fork()
-
+    if pid < 0:
+      print("fork() impossible")
+      os.abort()
     if pid == 0:  # Serveur secondaire "w"
       for _ in range(PING_PONG_LIMIT):
         # Attendre une notification du serveur principal via dwtube1
