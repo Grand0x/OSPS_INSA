@@ -44,4 +44,4 @@ Résumé:
 Pour éviter les zombies, le serveur secondaire ("w") doit se terminer en premier.
 Un "zombie" est un processus qui a terminé son exécution mais dont l'entrée subsiste toujours dans la table des processus, car le processus parent n'a pas encore lu l'état de sortie du processus enfant.
 
-### 3. Utilisation d’un tube anonyme pour assurer la communication entre le serveur principal et le serveur secondaire
+### 3.
