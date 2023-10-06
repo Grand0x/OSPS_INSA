@@ -1,77 +1,91 @@
 import os
-import time
 import sys
 import mmap
 
 # Chemins des tubes nommés
 DWTUBE_PATH = "dwtube1"
 WDTUBE_PATH = "wdtube1"
-PING_PONG_LIMIT = 5  # Nombre d'échanges ping-pong avant d'arrêter les serveurs
+PING_PONG_LIMIT = 14
 
 
 def create_named_pipes():
-  """Créer des tubes nommés s'ils n'existent pas déjà."""
+  """
+    Crée les tubes nommés si nécessaire.
+    """
   if not os.path.exists(DWTUBE_PATH):
     os.mkfifo(DWTUBE_PATH)
   if not os.path.exists(WDTUBE_PATH):
     os.mkfifo(WDTUBE_PATH)
 
 
+def watchdog_process():
+  """
+    Processus de surveillance (watchdog). 
+    Lance le serveur principal et le surveille.
+    """
+  print("[WATCHDOG] Watchdog démarré.")
+
+  if not os.path.exists(WDTUBE_PATH):
+    os.mkfifo(WDTUBE_PATH)
+
+  pid = os.fork()
+  if pid == 0:
+    main_with_pipes()
+    sys.exit(0)
+  else:
+    while True:
+      with open(WDTUBE_PATH, 'r') as wdtube:
+        msg = wdtube.read()
+        if msg == "exit":
+          break
+
+  print("[WATCHDOG] Watchdog terminé.")
+
+
 def main_with_pipes():
-  # Créer les tubes nommés
+  """
+    Gère la communication entre le serveur principal et secondaire.
+    """
+  print("[MAIN] Serveur principal démarré.")
   create_named_pipes()
 
-  # Créer un segment mémoire partagé
   with mmap.mmap(-1, 10) as shared_memory:
     pid = os.fork()
-    if pid < 0:
-      print("fork() impossible")
-      os.abort()
-    if pid == 0:  # Serveur secondaire "w"
+    if pid == 0:
+      print("[SECONDARY] Serveur secondaire démarré.")
       for _ in range(PING_PONG_LIMIT):
-        # Attendre une notification du serveur principal via dwtube1
         with open(DWTUBE_PATH, 'r') as dwtube:
           dwtube.read()
-
-        # Vérifier le message "ping" dans le segment mémoire partagé
         if shared_memory[:4].decode('utf-8') == "ping":
-          print("Serveur secondaire (w) a reçu 'ping', envoie 'pong'")
+          print("[SECONDARY] Ping reçu. Envoi de pong.")
           shared_memory.seek(0)
           shared_memory.write(b"pong")
-
-          # Notifier le serveur principal via wdtube1
           with open(WDTUBE_PATH, 'w') as wdtube:
             wdtube.write("pong_sent")
             wdtube.flush()
-
+      print("[SECONDARY] Serveur secondaire terminé.")
       sys.exit(0)
-
-    else:  # Serveur principal "d"
+    else:
       for _ in range(PING_PONG_LIMIT):
         shared_memory.seek(0)
-        shared_memory.write(b"ping")  # Envoi du message "ping"
-        print("Serveur principal (d) envoie 'ping'")
-
-        # Notifier le serveur secondaire via dwtube1
+        shared_memory.write(b"ping")
+        print("[MAIN] Ping envoyé.")
         with open(DWTUBE_PATH, 'w') as dwtube:
           dwtube.write("ping_sent")
           dwtube.flush()
-
-        # Attendre une notification du serveur secondaire via wdtube1
         with open(WDTUBE_PATH, 'r') as wdtube:
           wdtube.read()
-
-        # Vérifier le message "pong" dans le segment mémoire partagé
         if shared_memory[:4].decode('utf-8') == "pong":
-          print("Serveur principal (d) a reçu 'pong'")
+          print("[MAIN] Pong reçu.")
 
-      os.wait()
+      os.wait()  # Attend la fin du serveur secondaire
 
-      # Suppression des tubes nommés après utilisation
-      os.remove(DWTUBE_PATH)
-      os.remove(WDTUBE_PATH)
+      with open(WDTUBE_PATH, 'w') as wdtube:
+        wdtube.write("exit")
+        wdtube.flush()
+
+      print("[MAIN] Serveur principal terminé.")
 
 
-# Code pour exécuter le programme principal
 if __name__ == '__main__':
-  main_with_pipes()
+  watchdog_process()
